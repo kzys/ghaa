@@ -1,0 +1,2 @@
+# GHAA - GitHub Actions Analyzer
+

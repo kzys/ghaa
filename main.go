@@ -14,12 +14,10 @@ import (
 const prefix = ".github/workflows/"
 
 func listAllWorkflows(ctx context.Context, client *github.Client, owner, repos string) error {
-	runs, res, err := client.Actions.ListWorkflows(ctx, owner, repos, nil)
+	runs, _, err := client.Actions.ListWorkflows(ctx, owner, repos, nil)
 	if err != nil {
 		return err
 	}
-
-	fmt.Printf("runs = %+v\nres = %+v\n", runs, res)
 
 	for _, wf := range runs.Workflows {
 		path := *wf.Path
@@ -29,7 +27,6 @@ func listAllWorkflows(ctx context.Context, client *github.Client, owner, repos s
 		if !strings.HasPrefix(path, ".github/workflows/") {
 			continue
 		}
-		fmt.Printf("%s - %s\n", path[len(prefix):], *wf.Name)
 
 		runs, _, err := client.Actions.ListWorkflowRunsByID(ctx, owner, repos, *wf.ID,
 			&github.ListWorkflowRunsOptions{ExcludePullRequests: true},
@@ -37,22 +34,20 @@ func listAllWorkflows(ctx context.Context, client *github.Client, owner, repos s
 		if err != nil {
 			return err
 		}
+
+		var success, failure int
 		for _, run := range runs.WorkflowRuns {
 			if *run.Event == "pull_request" {
 				continue
 			}
-			fmt.Printf("  %s: %s\n", run.GetConclusion(), run.GetName())
 			if run.GetConclusion() == "success" {
-				continue
+				success += 1
+			} else {
+				failure += 1
 			}
-
-			jobs, _, err := client.Actions.ListWorkflowJobs(ctx, owner, repos, *run.ID, nil)
-			if err != nil {
-				return err
-			}
-			for _, job := range jobs.Jobs {
-				fmt.Printf("    %s: %s\n", *job.Conclusion, *job.Name)
-			}
+		}
+		if success + failure > 0 {
+			fmt.Printf("%6.2f%% %s\n", (float64(success) / float64(success + failure)) * 100.0, wf.GetName())
 		}
 	}
 	return nil
